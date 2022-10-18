@@ -248,20 +248,32 @@ static void Update(void) {
         V.height = GetRenderHeight();
     }
 
-    // Player movement
+    // Calculate the sign of the direction along which we are moving
+    // on the x and y axis respectively
+    float xSign = (P.rotation <= HALF_PI || P.rotation > 3 * HALF_PI) ? +1.0f : -1.0f;
+    float ySign = (P.rotation >= 0.0f && P.rotation < PI) ? +1.0f : -1.0f;
+    // Calculate the padding necessary to not slam the player into a wall
+    float xPad = 0.125f * xSign;
+    float yPad = 0.125f * ySign;
+    // Calculate the distance delta on the x and y axis
     float x = cosf(P.rotation) * delta * P.movementSpeed;
     float y = sinf(P.rotation) * delta * P.movementSpeed;
+    // Player movement
     Vector2 newPosition = P.position;
     if (I.forward) {
-        newPosition.x = P.position.x + x * I.forward;
-        newPosition.y = P.position.y + y * I.forward;
+        // Remember to add the padding to the distance delta
+        //                              vvvvvvvv
+        newPosition.x = P.position.x + (x + xPad) * I.forward;
+        newPosition.y = P.position.y + (y + yPad) * I.forward;
         // Check if the newPosition on the x-axis is inside the map
         if ((int) newPosition.x < M->width) {
             // Check for player longitudinal collision on the x-axis
             while (M->data[((int) P.position.y) * M->width + ((int) newPosition.x)]) {
                 newPosition.x -= x * I.forward;
             }
-            P.position.x = newPosition.x;
+            // Remember to subtract the padding once we are done
+            // computing the corrected position along the x-axis
+            P.position.x = newPosition.x - (xPad * I.forward);
         }
         // Check if the newPosition on the y-axis is inside the map
         if ((int) newPosition.y < M->height) {
@@ -269,19 +281,25 @@ static void Update(void) {
             while (M->data[((int) newPosition.y) * M->width + ((int) P.position.x)]) {
                 newPosition.y -= y * I.forward;
             }
-            P.position.y = newPosition.y;
+            // Same as above, we have to subtract the padding once
+            // we are done correcting the position along the y-axis
+            P.position.y = newPosition.y - (yPad * I.forward);
         }
     }
     if (I.right) {
-        newPosition.x = P.position.x - y * I.right;
-        newPosition.y = P.position.y + x * I.right;
+        // Remember to add the padding to the distance delta
+        //                              vvvvvvvv
+        newPosition.x = P.position.x - (y + yPad) * I.right;
+        newPosition.y = P.position.y + (x + xPad) * I.right;
         // Check if the newPosition on the x-axis is inside the map
         if ((int) newPosition.x < M->width) {
             // Check for player lateral collision on the x-axis
             while (M->data[((int) P.position.y) * M->width + ((int) newPosition.x)]) {
                 newPosition.x += y * I.right;
             }
-            P.position.x = newPosition.x;
+            // Remember to subtract the padding once we are done
+            // computing the corrected position along the x-axis
+            P.position.x = newPosition.x + (yPad * I.right);
         }
         // Check if the newPosition on the y-axis is inside the map
         if ((int) newPosition.y < M->height) {
@@ -289,7 +307,9 @@ static void Update(void) {
             while (M->data[((int) newPosition.y) * M->width + ((int) P.position.x)]) {
                 newPosition.y -= x * I.right;
             }
-            P.position.y = newPosition.y;
+            // Same as above, we have to subtract the padding once
+            // we are done correcting the position along the y-axis
+            P.position.y = newPosition.y - (xPad * I.right);
         }
     }
 
@@ -340,20 +360,22 @@ static void Render(void) {
     }
 
     // Draw 2D view (debug only!!!)
-    for (int y = 0; y < M->height; y++) {
-        for (int x = 0; x < M->width; x++) {
-            int v = M->data[y * M->width + x];
-            DrawRectangle(x * 64, y * 64, 64 - 1, 64 - 1, (v) ? GRAY : WHITE);
-        }
-    }
-    for (int i = 0; i < rays; i++) {
-        float angle = angleStart + i * angleStep;
-        HitDetails hit = TraceHorizontalRay(&worldCoords, &tileCoords, angle);
-        DrawLine(P.position.x * 64, P.position.y * 64, hit.coordinates.x * 64, hit.coordinates.y * 64, GREEN);
-    }
-    DrawLine(P.position.x * 64, P.position.y * 64, P.position.x * 64 + cosf(P.rotation) * 16, P.position.y * 64 + sinf(P.rotation) * 16, GREEN);
-    DrawRectangle(P.position.x * 64 - 4, P.position.y * 64 - 4, 8, 8, RED);
-    
+    //{
+    //    for (int y = 0; y < M->height; y++) {
+    //        for (int x = 0; x < M->width; x++) {
+    //            int v = M->data[y * M->width + x];
+    //            DrawRectangle(x * 64, y * 64, 64 - 1, 64 - 1, (v) ? GRAY : WHITE);
+    //        }
+    //    }
+    //    for (int i = 0; i < rays; i++) {
+    //        float angle = angleStart + i * angleStep;
+    //        HitDetails hit = TraceHorizontalRay(&worldCoords, &tileCoords, angle);
+    //        DrawLine(P.position.x * 64, P.position.y * 64, hit.coordinates.x * 64, hit.coordinates.y * 64, GREEN);
+    //    }
+    //    DrawLine(P.position.x * 64, P.position.y * 64, P.position.x * 64 + cosf(P.rotation) * 16, P.position.y * 64 + sinf(P.rotation) * 16, GREEN);
+    //    DrawRectangle(P.position.x * 64 - 4, P.position.y * 64 - 4, 8, 8, RED);
+    //}
+
     DrawFPS(10, 10);
 }
 
