@@ -68,7 +68,7 @@ static Map TestMap = {
         1, 0, 0, 0, 0, 0, 0, 0, 0, 1,
         1, 0, 0, 0, 0, 0, 0, 0, 0, 1,
         1, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-        1, 1, 0, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     }
 };
 
@@ -240,9 +240,12 @@ static void ProcessInput(void) {
 }
 
 static void Update(void) {
+    // Calculate frame delta time
     float nowTime = GetTime();
     float delta = nowTime - prevTime;
+    prevTime = nowTime;
 
+    // Resize viewport
     if (IsWindowResized()) {
         V.width = GetRenderWidth();
         V.height = GetRenderHeight();
@@ -320,41 +323,61 @@ static void Update(void) {
     } else if (P.rotation > 2.0f * PI) {
         P.rotation -= 2.0f * PI;
     }
-
-    prevTime = nowTime;
 }
 
 static void Render(void) {
     ClearBackground(BLACK);
+    // Draw the sky
     DrawRectangle(0, 0, V.width, V.height / 2, BLUE);
 
-    Vector2 worldCoords = { .x = (int) P.position.x, .y = (int) P.position.y };
-    Vector2 tileCoords = Vector2Subtract(P.position, worldCoords);
-    float angleStep = V.fov / V.rays;
-    float angleStart = P.rotation - V.fov / 2.0f;
     float halfHeight = V.height / 2.0f;
+    // Compute the cell coordinates
+    Vector2 worldCoords = { .x = (int) P.position.x, .y = (int) P.position.y };
+    // Compute the coordinates inside the cell
+    Vector2 tileCoords = Vector2Subtract(P.position, worldCoords);
+    // Calculate the angle increment for each ray
+    float angleStep = V.fov / V.rays;
+    // Calculate the angle for the first ray
+    float angleStart = P.rotation - V.fov / 2.0f;
+    // Calculate the width of each ray
     float thickness = (float) V.width / V.rays;
+    // Check if we need an extra ray to cover the entire screen
     int rays = (V.width % V.rays) ? (V.rays + 1) : V.rays;
-    for (int i = 0; i < rays; i++) {
-        float angle = angleStart + i * angleStep;
+    for (int n = 0; n < rays; n++) {
+        // Compute the angle of the n-th ray
+        float angle = angleStart + n * angleStep;
+        // Trace the ray
         HitDetails hit = TraceHorizontalRay(&worldCoords, &tileCoords, angle);
+        // Check if the ray hit a non empty cell
         if (hit.textureId) {
+            // If we did, get the cell's texture
             RaycasterTexture *texture = Textures[hit.textureId - 1];
+            // Calculate the height of the pixel column
             float lineHeight = M->maxWallHeight / (hit.distance * cosf(angle - P.rotation));
+            // Calculate the height of each pixel in the column
             float dotHeight = (float) lineHeight / texture->height;
+            // Find the corresponding texture column
             int textureColumn = hit.textureColumnOffset * texture->width;
+            // Clip the height of the column if it's higher than the
+            // viewport's height and offset the texture 
             float textureOffset = 0.0f;
             if (lineHeight > V.height) {
                 textureOffset = (lineHeight - V.height) / 2.0f;
                 lineHeight = V.height;
             }
-            Vector2 start = {
-                .x = i * thickness,
-                .y = halfHeight - lineHeight / 2.0f - textureOffset,
-            };
-            for (int j = 0; j < texture->height; j++) {
-                Color color = (texture->data[j * texture->width + textureColumn]) ? GOLD : WHITE;
-                DrawRectangle(start.x, start.y + roundf(j * dotHeight), roundf(thickness) + 1, roundf(dotHeight) + 1, color);
+            // Compute the starting point of the column
+            float xStart = n * thickness;
+            float yStart = halfHeight - lineHeight / 2.0f - textureOffset;
+            // Draw each pixel (of size thickness x dotHeight)
+            // in the texture column
+            for (int i = 0; i < texture->height; i++) {
+                Color color = (texture->data[i * texture->width + textureColumn]) ? GOLD : WHITE;
+                // Shade the color accordingly
+                color.r *= hit.shade;
+                color.g *= hit.shade;
+                color.b *= hit.shade;
+                // Draw the i-th pixel
+                DrawRectangle(xStart, yStart + roundf(i * dotHeight), ceilf(thickness), ceilf(dotHeight), color);
             }
         }
     }
