@@ -5,9 +5,9 @@
 #define DEFAULT_WINDOW_TITLE    "RECOIL"
 #define DEFAULT_VIEW_WIDTH      1366
 #define DEFAULT_VIEW_HEIGHT     768
-#define DEFAULT_VIEW_RAYS       480
+#define DEFAULT_VIEW_RAYS       1000
 #define DEFAULT_VIEW_DOF        16
-#define DEFAULT_VIEW_FOV        (70.0f * DEG2RAD)
+#define DEFAULT_VIEW_FOV        (66.0f * DEG2RAD)
 
 typedef struct {
     int width;
@@ -69,7 +69,7 @@ typedef struct {
 static Map TestMap = {
     .width = 10,
     .height = 12,
-    .maxWallHeight = 900.0f,
+    .maxWallHeight = 800.0f,
     .data = {
         {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0},
         {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
@@ -173,8 +173,6 @@ static HitDetails TraceHorizontalRay(Vector2 *worldCoords, Vector2 *tileCoords, 
     int stepY = (rayDirection.y < 0.0f) ? -1 : +1;
 
     // Find map coordinates
-    //int mapX = (int) (worldCoords->x + 0.001f * stepX);
-    //int mapY = (int) (worldCoords->y + 0.001f * stepY);
     int mapX = (int) worldCoords->x;
     int mapY = (int) worldCoords->y;
 
@@ -218,7 +216,7 @@ static HitDetails TraceHorizontalRay(Vector2 *worldCoords, Vector2 *tileCoords, 
         hit.textureColumnOffset = (stepX > 0) ? textureColumnOffset : (1.0f - textureColumnOffset);
     } else {
         float textureColumnOffset = hit.coordinates.x - (float) mapX;
-        hit.textureColumnOffset = (stepX < 0) ? textureColumnOffset : (1.0f - textureColumnOffset);
+        hit.textureColumnOffset = (stepY < 0) ? textureColumnOffset : (1.0f - textureColumnOffset);
     }
 
     return hit;
