@@ -39,10 +39,16 @@ typedef struct {
 } PlayerInput;
 
 typedef struct {
+    int ceiling;
+    int wall;
+    int floor;
+} Tile;
+
+typedef struct {
     int width;
     int height;
     float maxWallHeight;
-    int data[];
+    Tile data[];
 } Map;
 
 typedef struct {
@@ -57,22 +63,22 @@ static Map TestMap = {
     .height = 12,
     .maxWallHeight = 900.0f,
     .data = {
-        1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        1, 0, 0, 0, 0, 1, 1, 0, 0, 1,
-        1, 0, 0, 0, 0, 0, 1, 0, 0, 1,
-        1, 0, 0, 0, 0, 0, 1, 0, 0, 1,
-        1, 0, 0, 0, 0, 0, 1, 0, 0, 1,
-        1, 0, 0, 0, 0, 0, 1, 0, 0, 1,
-        1, 0, 0, 1, 1, 0, 1, 0, 0, 1,
-        1, 0, 0, 0, 1, 1, 1, 0, 0, 1,
-        1, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-        1, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-        1, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-        1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0},
+        {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
+        {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
+        {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
+        {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
+        {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
+        {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
+        {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
+        {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
+        {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
+        {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
+        {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0},
     }
 };
 
-static RaycasterTexture testTexture = {
+static RaycasterTexture smiley = {
     .width = 8,
     .height = 8,
     .data = {
@@ -87,7 +93,7 @@ static RaycasterTexture testTexture = {
     }
 };
 static RaycasterTexture *Textures[] = {
-    &testTexture
+    &smiley
 };
 
 // Singletons
@@ -103,8 +109,8 @@ static Viewport V = {
 };
 static Player P = {
     .position = {
-        .x = 4.35f,
-        .y = 3.6f
+        .x = 1.5f,
+        .y = 1.5f
     },
     .rotation = 0.0f,
     .movementSpeed = 2.5f,
@@ -115,12 +121,12 @@ static Player P = {
 #define MAPSZ (M->width * M->height)
 #define HALF_PI (PI / 2.0f)
 
-static int CheckRayHit(Vector2 *ray, float xStep, float yStep) {
+static int CheckRayHitWall(Vector2 *ray, float xStep, float yStep) {
     int mapX = (int) (ray->x + 0.00001f * xStep);
     int mapY = (int) (ray->y + 0.00001f * yStep);
     int mapPointer = mapY * M->width + mapX;
     if (mapPointer >= 0 && mapPointer < MAPSZ) {
-        return M->data[mapPointer];
+        return M->data[mapPointer].wall;
     }
     return 0;
 }
@@ -180,7 +186,7 @@ static HitDetails TraceHorizontalRay(Vector2 *worldCoords, Vector2 *tileCoords, 
     // Step the rays and check what they hit (if they hit anything)
     int xHit = 0, yHit = 0;
     for (int dof = 0; dof < V.dof; dof++) {
-        if ((xHit = CheckRayHit(&xRay, xStep, yStep))) {
+        if ((xHit = CheckRayHitWall(&xRay, xStep, yStep))) {
             break;
         } else {
             xRay.x += xStep;
@@ -188,7 +194,7 @@ static HitDetails TraceHorizontalRay(Vector2 *worldCoords, Vector2 *tileCoords, 
         }
     }
     for (int dof = 0; dof < V.dof; dof++) {
-        if ((yHit = CheckRayHit(&yRay, xStep, yStep))) {
+        if ((yHit = CheckRayHitWall(&yRay, xStep, yStep))) {
             break;
         } else {
             yRay.x += xDelta * yStep;
@@ -271,7 +277,7 @@ static void Update(void) {
         // Check if the newPosition on the x-axis is inside the map
         if ((int) newPosition.x < M->width) {
             // Check for player longitudinal collision on the x-axis
-            while (M->data[((int) P.position.y) * M->width + ((int) newPosition.x)]) {
+            while (M->data[((int) P.position.y) * M->width + ((int) newPosition.x)].wall) {
                 newPosition.x -= x * I.forward;
             }
             // Remember to subtract the padding once we are done
@@ -281,7 +287,7 @@ static void Update(void) {
         // Check if the newPosition on the y-axis is inside the map
         if ((int) newPosition.y < M->height) {
             // Check for player longitudinal collision on the y-axis
-            while (M->data[((int) newPosition.y) * M->width + ((int) P.position.x)]) {
+            while (M->data[((int) newPosition.y) * M->width + ((int) P.position.x)].wall) {
                 newPosition.y -= y * I.forward;
             }
             // Same as above, we have to subtract the padding once
@@ -297,7 +303,7 @@ static void Update(void) {
         // Check if the newPosition on the x-axis is inside the map
         if ((int) newPosition.x < M->width) {
             // Check for player lateral collision on the x-axis
-            while (M->data[((int) P.position.y) * M->width + ((int) newPosition.x)]) {
+            while (M->data[((int) P.position.y) * M->width + ((int) newPosition.x)].wall) {
                 newPosition.x += y * I.right;
             }
             // Remember to subtract the padding once we are done
@@ -307,7 +313,7 @@ static void Update(void) {
         // Check if the newPosition on the y-axis is inside the map
         if ((int) newPosition.y < M->height) {
             // Check for player lateral collision on the y-axis
-            while (M->data[((int) newPosition.y) * M->width + ((int) P.position.x)]) {
+            while (M->data[((int) newPosition.y) * M->width + ((int) P.position.x)].wall) {
                 newPosition.y -= x * I.right;
             }
             // Same as above, we have to subtract the padding once
