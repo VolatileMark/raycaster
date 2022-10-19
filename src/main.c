@@ -6,7 +6,7 @@
 #define DEFAULT_VIEW_WIDTH      1366
 #define DEFAULT_VIEW_HEIGHT     768
 #define DEFAULT_VIEW_RAYS       480
-#define DEFAULT_VIEW_DOF        12
+#define DEFAULT_VIEW_DOF        16
 #define DEFAULT_VIEW_FOV        (70.0f * DEG2RAD)
 
 typedef struct {
@@ -15,7 +15,15 @@ typedef struct {
     int rays;
     int dof;
     float fov;
-} Viewport;
+} View;
+
+typedef struct {
+    float prevTime;
+    float halfHeight;
+    float cameraPlaneHalfWidth;
+    Vector2 playerDirection;
+    Vector2 cameraPlane;
+} Computed;
 
 typedef struct {
     Vector2 position;
@@ -47,15 +55,15 @@ typedef struct {
 typedef struct {
     int width;
     int height;
-    float maxWallHeight;
-    Tile data[];
-} Map;
+    int data[];
+} TileTexture;
 
 typedef struct {
     int width;
     int height;
-    int data[];
-} RaycasterTexture;
+    float maxWallHeight;
+    Tile data[];
+} Map;
 
 // Test data
 static Map TestMap = {
@@ -78,7 +86,7 @@ static Map TestMap = {
     }
 };
 
-static RaycasterTexture smiley = {
+static TileTexture smiley = {
     .width = 8,
     .height = 8,
     .data = {
@@ -92,20 +100,20 @@ static RaycasterTexture smiley = {
         1, 1, 1, 1, 1, 1, 1, 1,
     }
 };
-static RaycasterTexture *Textures[] = {
+static TileTexture *T[] = {
     &smiley
 };
 
 // Singletons
-static float prevTime = 0.0f;
+static Computed C = {0};
 static PlayerInput I = {false};
 static Map *M = &TestMap;
-static Viewport V = {
+static View V = {
     .width = DEFAULT_VIEW_WIDTH,
     .height = DEFAULT_VIEW_HEIGHT,
     .rays = DEFAULT_VIEW_RAYS,
     .dof = DEFAULT_VIEW_DOF,
-    .fov = DEFAULT_VIEW_FOV
+    .fov = DEFAULT_VIEW_FOV,
 };
 static Player P = {
     .position = {
@@ -121,106 +129,98 @@ static Player P = {
 #define MAPSZ (M->width * M->height)
 #define HALF_PI (PI / 2.0f)
 
-static int CheckRayHitWall(Vector2 *ray, float xStep, float yStep) {
-    int mapX = (int) (ray->x + 0.00001f * xStep);
-    int mapY = (int) (ray->y + 0.00001f * yStep);
-    int mapPointer = mapY * M->width + mapX;
-    if (mapPointer >= 0 && mapPointer < MAPSZ) {
-        return M->data[mapPointer].wall;
+static float absf(float f) {
+    if (f < 0.0f) {
+        return -f;
     }
-    return 0;
+    return f;
 }
 
-static HitDetails TraceHorizontalRay(Vector2 *worldCoords, Vector2 *tileCoords, float angle) {
+static HitDetails TraceHorizontalRay(Vector2 *worldCoords, Vector2 *tileCoords, float angle, float planeX) {
     // Clamp angle between 0 and 2PI
     if (angle < 0.0f) {
         angle += 2 * PI;
     } else if (angle > 2 * PI) {
         angle -= 2 * PI;
     }
-    // Calculate the directional distance in which we have to step the ray
-    // along the x-axis to get to the next intersection with y-axis
-    float xStep = (angle <= HALF_PI || angle > 3.0f *  HALF_PI) ? +1.0f : -1.0f;
-    // Calculate the directional distance in which we have to step the ray
-    // along the y-axis to get to the next intersection with x-axis
-    float yStep = (angle >= 0.0f && angle < PI) ? +1.0f : -1.0f;
 
-    // Calculate the directional distance on the x-axis
-    // to the cell border, according to where the player is pointing
-    float xDistance = (xStep > 0.0f) ? (1.0f - tileCoords->x) : -tileCoords->x;
-    // Calculate the directional distance on the y-axis
-    // to the cell border, according to where the player is pointing
-    float yDistance = (yStep > 0.0f) ? (1.0f - tileCoords->y) : -tileCoords->y;
+    // Compute the ray direction
+    Vector2 rayDirection = Vector2Add(C.playerDirection, Vector2Scale(C.cameraPlane, planeX));
+    
+    // Compute the distance along the ray direction to the next intersection
+    // with the y-axis
+    float yDeltaDistance = absf(1.0f / rayDirection.x);
+    // Compute the distance along the ray direction to the next intersection
+    // with the x-axis
+    float xDeltaDistance = absf(1.0f / rayDirection.y);
 
-    float cos = cosf(angle);
-    float sin = sinf(angle);
-    float tan = sin / cos;
+    // Compute the distance in the horizontal direction of the ray to
+    // the border of the cell
+    float xDistance = (rayDirection.x > 0.0f) ? (1.0f - tileCoords->x) : tileCoords->x;
+    // Compute the distance in the vertical direction of the ray to
+    // the border of the cell
+    float yDistance = (rayDirection.y > 0.0f) ? (1.0f - tileCoords->y) : tileCoords->y;
 
-    // Calculate directional distance we have to step the ray along the
-    // y-axis to get to the next intersection with the y-axis
-    float yDelta = (sin < 0.001f && sin > -0.001f) ? 0.0f : tan;
-    // Calculate directional distance we have to step the ray along the
-    // x-axis to get to the next intersection with the x-axis
-    float xDelta = (cos < 0.001f && cos > -0.001f) ? 0.0f : 1.0f / tan;
+    // Compute the distance along the ray direction to the first intersection
+    // with the y-axis
+    float yIntersectionDistance = yDeltaDistance * xDistance;
+    // Compute the distance along the ray direction to the first intersection
+    // with the x-axis
+    float xIntersectionDistance = xDeltaDistance * yDistance;
 
-    // Calculate the directional distance to the first intersection with the y-axis
-    float yIntersection = xDistance * yDelta;
-    // Calculate the directional distance to the first intersection with the x-axis
-    float xIntersection = yDistance * xDelta;
+    // Find the direction we are moving in the map
+    int stepX = (rayDirection.x < 0.0f) ? -1 : +1;
+    int stepY = (rayDirection.y < 0.0f) ? -1 : +1;
 
-    Vector2 yIntersectionVector = {
-        .x = xDistance,
-        .y = yIntersection
-    };
+    // Find map coordinates
+    //int mapX = (int) (worldCoords->x + 0.001f * stepX);
+    //int mapY = (int) (worldCoords->y + 0.001f * stepY);
+    int mapX = (int) worldCoords->x;
+    int mapY = (int) worldCoords->y;
 
-    Vector2 xIntersectionVector = {
-        .x = xIntersection,
-        .y = yDistance
-    };
-
-    // Build the ray that steps along the x-axis and intersects the y-axis
-    Vector2 xRay = Vector2Add(P.position, yIntersectionVector);
-    // Build the ray that steps along the y-axis and intersects the x-axis
-    Vector2 yRay = Vector2Add(P.position, xIntersectionVector);
-
-    // Step the rays and check what they hit (if they hit anything)
-    int xHit = 0, yHit = 0;
-    for (int dof = 0; dof < V.dof; dof++) {
-        if ((xHit = CheckRayHitWall(&xRay, xStep, yStep))) {
+    // Step the rays until one hits
+    int textureId = 0;
+    bool vertical = true;
+    for (int i = 0; i < V.dof; i++) {
+        int mapOffset = mapY * M->width + mapX;
+        if (mapOffset > 0 && mapOffset < MAPSZ && (textureId = M->data[mapOffset].wall)) {
             break;
-        } else {
-            xRay.x += xStep;
-            xRay.y += yDelta * xStep;
         }
-    }
-    for (int dof = 0; dof < V.dof; dof++) {
-        if ((yHit = CheckRayHitWall(&yRay, xStep, yStep))) {
-            break;
+        if (yIntersectionDistance < xIntersectionDistance) {
+            yIntersectionDistance += yDeltaDistance;
+            mapX += stepX;
+            vertical = true;
         } else {
-            yRay.x += xDelta * yStep;
-            yRay.y += yStep;
+            xIntersectionDistance += xDeltaDistance;
+            mapY += stepY;
+            vertical = false;
         }
     }
 
-    // Calculate the length of each ray
-    float xLen = Vector2Length(Vector2Subtract(xRay, P.position));
-    float yLen = Vector2Length(Vector2Subtract(yRay, P.position));
+    // Return the hit information for the first ray
+    // to hit a wall
+    HitDetails hit;
+    hit.textureId = textureId;
+    if (vertical) {
+        // yDeltaDistance is subracted from the total to
+        // obtain the distance projected onto the camera direction
+        // This is done to fix the fisheye effect
+        hit.distance = yIntersectionDistance - yDeltaDistance;
+        hit.shade = 1.0f;
+    } else {
+        hit.distance = xIntersectionDistance - xDeltaDistance;
+        hit.shade = 0.75f;
+    }
+    hit.coordinates.x = P.position.x + rayDirection.x * hit.distance;
+    hit.coordinates.y = P.position.y + rayDirection.y * hit.distance;
+    if (vertical) {
+        float textureColumnOffset = hit.coordinates.y - (float) mapY;
+        hit.textureColumnOffset = (stepX > 0) ? textureColumnOffset : (1.0f - textureColumnOffset);
+    } else {
+        float textureColumnOffset = hit.coordinates.x - (float) mapX;
+        hit.textureColumnOffset = (stepX < 0) ? textureColumnOffset : (1.0f - textureColumnOffset);
+    }
 
-    // Calculate the texture column offset
-    float xTextureColumnOffset = (xRay.y - (int) xRay.y);
-    float yTextureColumnOffset = (yRay.x - (int) yRay.x);
-    // Calculate the corrected texture column offset
-    float xTextureColumnCorrectedOffset = (xStep > 0.0f) ? xTextureColumnOffset : (1.0f - xTextureColumnOffset);
-    float yTextureColumnCorrectedOffset = (yStep < 0.0f) ? yTextureColumnOffset : (1.0f - yTextureColumnOffset);
-
-    // Return the data for shortest ray
-    HitDetails hit = {
-        .textureId = (xLen < yLen) ? xHit : yHit,
-        .textureColumnOffset = (xLen < yLen) ? xTextureColumnCorrectedOffset : yTextureColumnCorrectedOffset,
-        .shade = (xLen < yLen) ? 1.0f : 0.75f,
-        .distance = (xLen < yLen) ? xLen : yLen,
-        .coordinates = (xLen < yLen) ? xRay : yRay,
-    };
     return hit;
 }
 
@@ -248,14 +248,29 @@ static void ProcessInput(void) {
 static void Update(void) {
     // Calculate frame delta time
     float nowTime = GetTime();
-    float delta = nowTime - prevTime;
-    prevTime = nowTime;
+    float delta = nowTime - C.prevTime;
+    C.prevTime = nowTime;
 
-    // Resize viewport
+    // Resize viewport and recalculate halfHeight and planeDistance
     if (IsWindowResized()) {
         V.width = GetRenderWidth();
         V.height = GetRenderHeight();
+        C.halfHeight = V.height / 2.0f;
     }
+
+    // Camera horizontal rotation
+    P.rotation += I.xMouseDelta * P.rotationSpeed * delta;
+    if (P.rotation < 0.0f) {
+        P.rotation += 2.0f * PI;
+    } else if (P.rotation > 2.0f * PI) {
+        P.rotation -= 2.0f * PI;
+    }
+    // Compute player direction
+    C.playerDirection.x = cosf(P.rotation);
+    C.playerDirection.y = sinf(P.rotation);
+    // Compute camera plane offset
+    C.cameraPlane.x = -C.playerDirection.y * C.cameraPlaneHalfWidth;
+    C.cameraPlane.y = +C.playerDirection.x * C.cameraPlaneHalfWidth;
 
     // Calculate the sign of the direction along which we are moving
     // on the x and y axis respectively
@@ -265,8 +280,8 @@ static void Update(void) {
     float xPad = 0.125f * xSign;
     float yPad = 0.125f * ySign;
     // Calculate the distance delta on the x and y axis
-    float x = cosf(P.rotation) * delta * P.movementSpeed;
-    float y = sinf(P.rotation) * delta * P.movementSpeed;
+    float x = C.playerDirection.x * delta * P.movementSpeed;
+    float y = C.playerDirection.y * delta * P.movementSpeed;
     // Player movement
     Vector2 newPosition = P.position;
     if (I.forward) {
@@ -321,14 +336,6 @@ static void Update(void) {
             P.position.y = newPosition.y - (xPad * I.right);
         }
     }
-
-    // Camera horizontal rotation
-    P.rotation += I.xMouseDelta * P.rotationSpeed * delta;
-    if (P.rotation < 0.0f) {
-        P.rotation += 2.0f * PI;
-    } else if (P.rotation > 2.0f * PI) {
-        P.rotation -= 2.0f * PI;
-    }
 }
 
 static void Render(void) {
@@ -352,14 +359,16 @@ static void Render(void) {
     for (int n = 0; n < rays; n++) {
         // Compute the angle of the n-th ray
         float angle = angleStart + n * angleStep;
+        // planeX = coordinate (between -1 and 1) of the ray on the x-axis of the plane
+        float planeX = (2.0f * ((float) n / rays)) - 1.0f; 
         // Trace the ray
-        HitDetails hit = TraceHorizontalRay(&worldCoords, &tileCoords, angle);
+        HitDetails hit = TraceHorizontalRay(&worldCoords, &tileCoords, angle, planeX);
         // Check if the ray hit a non empty cell
         if (hit.textureId) {
             // If we did, get the cell's texture
-            RaycasterTexture *texture = Textures[hit.textureId - 1];
+            TileTexture *texture = T[hit.textureId - 1];
             // Calculate the height of the pixel column
-            float lineHeight = M->maxWallHeight / (hit.distance * cosf(angle - P.rotation));
+            float lineHeight = M->maxWallHeight / hit.distance;
             // Calculate the height of each pixel in the column
             float dotHeight = (float) lineHeight / texture->height;
             // Find the corresponding texture column
@@ -392,16 +401,22 @@ static void Render(void) {
     //{
     //    for (int y = 0; y < M->height; y++) {
     //        for (int x = 0; x < M->width; x++) {
-    //            int v = M->data[y * M->width + x];
+    //            int v = M->data[y * M->width + x].wall;
     //            DrawRectangle(x * 64, y * 64, 64 - 1, 64 - 1, (v) ? GRAY : WHITE);
     //        }
     //    }
     //    for (int i = 0; i < rays; i++) {
     //        float angle = angleStart + i * angleStep;
-    //        HitDetails hit = TraceHorizontalRay(&worldCoords, &tileCoords, angle);
+    //        // planeX = coordinate (between -1 and 1) of the ray on the x-axis of the plane
+    //        float planeX = (2.0f * ((float) i / rays)) - 1.0f; 
+    //        HitDetails hit = TraceHorizontalRay(&worldCoords, &tileCoords, angle, planeX);
     //        DrawLine(P.position.x * 64, P.position.y * 64, hit.coordinates.x * 64, hit.coordinates.y * 64, GREEN);
     //    }
-    //    DrawLine(P.position.x * 64, P.position.y * 64, P.position.x * 64 + cosf(P.rotation) * 16, P.position.y * 64 + sinf(P.rotation) * 16, GREEN);
+    //    DrawLine(P.position.x * 64, P.position.y * 64, (P.position.x + C.playerDirection.x) * 64, (P.position.y + C.playerDirection.y) * 64, BLUE);
+    //    DrawLine(P.position.x * 64, P.position.y * 64, (P.position.x + C.playerDirection.x + C.cameraPlane.x) * 64, (P.position.y + C.playerDirection.y + C.cameraPlane.y) * 64, BLACK);
+    //    DrawLine(P.position.x * 64, P.position.y * 64, (P.position.x + C.playerDirection.x - C.cameraPlane.x) * 64, (P.position.y + C.playerDirection.y - C.cameraPlane.y) * 64, BLACK);
+    //    DrawLine((P.position.x + C.playerDirection.x) * 64, (P.position.y + C.playerDirection.y) * 64, (P.position.x + C.playerDirection.x + C.cameraPlane.x) * 64, (P.position.y + C.playerDirection.y + C.cameraPlane.y) * 64, DARKGREEN);
+    //    DrawLine((P.position.x + C.playerDirection.x) * 64, (P.position.y + C.playerDirection.y) * 64, (P.position.x + C.playerDirection.x - C.cameraPlane.x) * 64, (P.position.y + C.playerDirection.y - C.cameraPlane.y) * 64, DARKGREEN);
     //    DrawRectangle(P.position.x * 64 - 4, P.position.y * 64 - 4, 8, 8, RED);
     //}
 
@@ -416,7 +431,9 @@ static void Init(void) {
     );
     SetWindowState(FLAG_WINDOW_RESIZABLE);
     DisableCursor();
-    prevTime = GetTime();
+    C.halfHeight = V.height / 2.0f;
+    C.cameraPlaneHalfWidth = 1.0f / (2.0f * tanf(V.fov / 2.0f));
+    C.prevTime = GetTime();
 }
 
 static void Shutdown(void) {
