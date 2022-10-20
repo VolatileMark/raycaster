@@ -5,22 +5,28 @@
 #define DEFAULT_WINDOW_TITLE    "RECOIL"
 #define DEFAULT_VIEW_WIDTH      1366
 #define DEFAULT_VIEW_HEIGHT     768
-#define DEFAULT_VIEW_RAYS       1000
 #define DEFAULT_VIEW_DOF        16
 #define DEFAULT_VIEW_FOV        (66.0f * DEG2RAD)
+#define DEFAULT_VIEW_RAYS       0.25f
 
 typedef struct {
     int width;
     int height;
-    int rays;
     int dof;
     float fov;
+    float scaling;
 } View;
 
 typedef struct {
+    int columns;
+    int rows;
     float prevTime;
-    float halfHeight;
+    float viewportHalfHeight;
     float cameraPlaneHalfWidth;
+    float columnAngleStart;
+    float columnAngleStep;
+    float columnPixelWidth;
+    float rowPixelHeight;
     Vector2 playerDirection;
     Vector2 cameraPlane;
 } Computed;
@@ -31,14 +37,6 @@ typedef struct {
     float movementSpeed;
     float rotationSpeed;
 } Player;
-
-typedef struct {
-    int textureId;
-    float textureColumnOffset;
-    float shade;
-    float distance;
-    Vector2 coordinates;
-} HitDetails;
 
 typedef struct {
     int forward;
@@ -72,7 +70,7 @@ static Map TestMap = {
     .maxWallHeight = 800.0f,
     .data = {
         {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0},
-        {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
+        {0, 1, 0}, {1, 0, 1}, {1, 0, 1}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
         {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
         {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
         {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
@@ -111,7 +109,7 @@ static Map *M = &TestMap;
 static View V = {
     .width = DEFAULT_VIEW_WIDTH,
     .height = DEFAULT_VIEW_HEIGHT,
-    .rays = DEFAULT_VIEW_RAYS,
+    .scaling = DEFAULT_VIEW_RAYS,
     .dof = DEFAULT_VIEW_DOF,
     .fov = DEFAULT_VIEW_FOV,
 };
@@ -128,16 +126,111 @@ static Player P = {
 // Useful defines
 #define MAPSZ (M->width * M->height)
 #define HALF_PI (PI / 2.0f)
+#define absf(x) ((x < 0.0f) ? -x : x)
 
-static float absf(float f) {
-    if (f < 0.0f) {
-        return -f;
-    }
-    return f;
+static void RecomputeValues(void) {
+    C.viewportHalfHeight = V.height / 2.0f;
+    // Compute the number of rays and scanlines necessary to
+    // draw the full screen
+    int rays = (int) (V.width * V.scaling);
+    int scanlines = (int) (V.height * V.scaling);
+    C.columns = (V.width % rays) ? (rays + 1) : rays;
+    C.rows = (V.height % scanlines) ? (scanlines + 1) : scanlines;
+    // Compute half the width of the camera plane
+    C.cameraPlaneHalfWidth = 1.0f / (2.0f * tanf(V.fov / 2.0f));
+    // Calculate the angle increment for each column ray
+    C.columnAngleStep = V.fov / C.columns;
+    // Calculate the angle for the first column ray
+    C.columnAngleStart = P.rotation - V.fov / 2.0f;
+    // Calculate the width of each pixel in a column
+    C.columnPixelWidth = (float) V.width / C.columns;
+    // Calculate the width of each pixel in a row
+    C.rowPixelHeight = (float) V.height / C.rows;
 }
 
-static HitDetails TraceHorizontalRay(Vector2 *worldCoords, Vector2 *tileCoords, float angle, float planeX) {
-    // Clamp angle between 0 and 2PI
+//static void DrawRow(Vector2 leftMostPixel, Vector2 rightMostPixel, int n) {
+//    int p = n - C.viewportHalfHeight;
+//    float rowDistance = -C.viewportHalfHeight / p;
+//    Vector2 step = Vector2Scale(Vector2Subtract(rightMostPixel, leftMostPixel), rowDistance / C.columns);
+//    Vector2 position = Vector2Add(P.position, Vector2Scale(leftMostPixel, rowDistance));
+//    for (int x = 0; x < C.columns; x++) {
+//        int cellX = (int) position.x;
+//        int cellY = (int) position.y;
+//        int cellOffset = cellY * M->width + cellX;
+//        if (cellOffset < 0 || cellOffset >= MAPSZ) {
+//            break;
+//        }
+//        int cellId = M->data[cellOffset].ceiling;
+//        if (!cellId) {
+//            continue;
+//        }
+//        TileTexture *texture = T[cellId - 1];
+//        int textureX = (int) (texture->width * (position.x - (float) cellX));
+//        int textureY = (int) (texture->height * (position.y - (float) cellY));
+//
+//        position.x += step.x;
+//        position.y += step.y;
+//
+//        int textureOffset = textureY * texture->width + textureX;
+//        if (textureOffset < 0 || textureOffset >= texture->width * texture->height) {
+//            continue;
+//        }
+//        Color color = (texture->data[textureOffset]) ? RED : GREEN;
+//        if (n < C.cameraPlaneHalfWidth) {
+//            color.r *= 0.75f;
+//            color.g *= 0.75f;
+//            color.b *= 0.75f;
+//        }
+//
+//        float xStart = x * C.columnPixelWidth;
+//        float yStart = n * C.rowPixelHeight;
+//        DrawRectangle(xStart, yStart, roundf(C.columnPixelWidth), roundf(C.rowPixelHeight), color);
+//    }
+//}
+
+static void DrawRow(Vector2 cameraPlaneLeft, Vector2 cameraPlaneRight, int n) {
+    float y = n * C.rowPixelHeight;
+    int heightOnScreen = C.viewportHalfHeight - y;
+    float distance = C.viewportHalfHeight / heightOnScreen;
+    Vector2 step = Vector2Scale(Vector2Subtract(cameraPlaneRight, cameraPlaneLeft), distance / C.columns);
+    Vector2 position = Vector2Add(P.position, Vector2Scale(cameraPlaneLeft, distance));
+    for (int x = 0; x < C.columns; x++) {
+        int cellX = (int) position.x;
+        int cellY = (int) position.y;
+        int cellOffset = cellY * M->width + cellX;
+        if (cellOffset < 0 || cellOffset >= MAPSZ) {
+            break;
+        }
+        for (int floor = 0; floor < 2; floor++) {
+            int cellId = (floor) ? M->data[cellOffset].floor : M->data[cellOffset].ceiling;
+            if (!cellId) {
+                continue;
+            }
+            TileTexture *texture = T[cellId - 1];
+            int textureX = texture->width * (position.x - (float) cellX);
+            int textureY = texture->height * (position.y - (float) cellY);
+            int textureOffset = textureY * texture->width + textureX;
+            if (textureOffset < 0 || textureOffset >= texture->width * texture->height) {
+                continue;
+            }
+            Color color = (texture->data[textureOffset]) ? RED : GREEN;
+            int xStart = x * C.columnPixelWidth;
+            int yStart = (floor) ? (V.height - y) : y;
+            DrawRectangle(xStart, yStart, ceilf(C.columnPixelWidth), ceilf(C.rowPixelHeight), color);
+        }
+        position.x += step.x;
+        position.y += step.y;
+    }
+}
+
+static void DrawColumn(Vector2 *worldCoords, Vector2 *tileCoords, int n) {
+    // Compute the angle of the ray
+    float angle = C.columnAngleStart + n * C.columnAngleStep;
+    // cameraX = coordinate (between -1 and 1) of the ray on the x-axis
+    //           of the camera plane
+    float cameraX = (2.0f * ((float) n / C.columns)) - 1.0f; 
+    
+    // Clamp angle between 0 and 2*PI
     if (angle < 0.0f) {
         angle += 2 * PI;
     } else if (angle > 2 * PI) {
@@ -145,7 +238,7 @@ static HitDetails TraceHorizontalRay(Vector2 *worldCoords, Vector2 *tileCoords, 
     }
 
     // Compute the ray direction
-    Vector2 rayDirection = Vector2Add(C.playerDirection, Vector2Scale(C.cameraPlane, planeX));
+    Vector2 rayDirection = Vector2Add(C.playerDirection, Vector2Scale(C.cameraPlane, cameraX));
     
     // Compute the distance along the ray direction to the next intersection
     // with the y-axis
@@ -177,11 +270,11 @@ static HitDetails TraceHorizontalRay(Vector2 *worldCoords, Vector2 *tileCoords, 
     int mapY = (int) worldCoords->y;
 
     // Step the rays until one hits
-    int textureId = 0;
+    int cellId = 0;
     bool vertical = true;
     for (int i = 0; i < V.dof; i++) {
         int mapOffset = mapY * M->width + mapX;
-        if (mapOffset > 0 && mapOffset < MAPSZ && (textureId = M->data[mapOffset].wall)) {
+        if (mapOffset > 0 && mapOffset < MAPSZ && (cellId = M->data[mapOffset].wall)) {
             break;
         }
         if (yIntersectionDistance < xIntersectionDistance) {
@@ -195,31 +288,64 @@ static HitDetails TraceHorizontalRay(Vector2 *worldCoords, Vector2 *tileCoords, 
         }
     }
 
-    // Return the hit information for the first ray
+    // Check if the ray hit an empty cell
+    if (!cellId) {
+        return;
+    }
+    // If we didn't, get that cell's texture
+    TileTexture *texture = T[cellId - 1];
+
+    // Get the hit information for the first ray
     // to hit a wall
-    HitDetails hit;
-    hit.textureId = textureId;
+    float rayDistance, colorBrightness;
     if (vertical) {
         // yDeltaDistance is subracted from the total to
         // obtain the distance projected onto the camera direction
         // This is done to fix the fisheye effect
-        hit.distance = yIntersectionDistance - yDeltaDistance;
-        hit.shade = 1.0f;
+        rayDistance = yIntersectionDistance - yDeltaDistance;
+        colorBrightness = 1.0f;
     } else {
-        hit.distance = xIntersectionDistance - xDeltaDistance;
-        hit.shade = 0.75f;
+        rayDistance = xIntersectionDistance - xDeltaDistance;
+        colorBrightness = 0.75f;
     }
-    hit.coordinates.x = P.position.x + rayDirection.x * hit.distance;
-    hit.coordinates.y = P.position.y + rayDirection.y * hit.distance;
+    Vector2 coordinates = Vector2Add(P.position, Vector2Scale(rayDirection, rayDistance));
+    float textureColumnOffset;
+    // Compute the correct offset for the column in the texture
     if (vertical) {
-        float textureColumnOffset = hit.coordinates.y - (float) mapY;
-        hit.textureColumnOffset = (stepX > 0) ? textureColumnOffset : (1.0f - textureColumnOffset);
+        textureColumnOffset = coordinates.y - (float) mapY;
+        textureColumnOffset = (stepX > 0) ? textureColumnOffset : (1.0f - textureColumnOffset);
     } else {
-        float textureColumnOffset = hit.coordinates.x - (float) mapX;
-        hit.textureColumnOffset = (stepY < 0) ? textureColumnOffset : (1.0f - textureColumnOffset);
+        textureColumnOffset = coordinates.x - (float) mapX;
+        textureColumnOffset = (stepY < 0) ? textureColumnOffset : (1.0f - textureColumnOffset);
     }
 
-    return hit;
+    // Calculate the height of the pixel column
+    float lineHeight = M->maxWallHeight / rayDistance;
+    // Calculate the height of each pixel in the column
+    float dotHeight = (float) lineHeight / texture->height;
+    // Find the corresponding texture column
+    int textureColumn = textureColumnOffset * texture->width;
+    // Clip the height of the column if it's higher than the
+    // viewport's height and offset the texture 
+    float textureOffset = 0.0f;
+    if (lineHeight > V.height) {
+        textureOffset = (lineHeight - V.height) / 2.0f;
+        lineHeight = V.height;
+    }
+    // Compute the starting point of the column
+    float xStart = n * C.columnPixelWidth;
+    float yStart = C.viewportHalfHeight - lineHeight / 2.0f - textureOffset;
+    // Draw each pixel (of size C.columnPixelWidth x dotHeight)
+    // in the texture column
+    for (int i = 0; i < texture->height; i++) {
+        Color color = (texture->data[i * texture->width + textureColumn]) ? GOLD : WHITE;
+        // Shade the color accordingly
+        color.r *= colorBrightness;
+        color.g *= colorBrightness;
+        color.b *= colorBrightness;
+        // Draw the i-th pixel
+        DrawRectangle(xStart, yStart + roundf(i * dotHeight), ceilf(C.columnPixelWidth), ceilf(dotHeight), color);
+    }
 }
 
 static void ProcessInput(void) {
@@ -253,7 +379,7 @@ static void Update(void) {
     if (IsWindowResized()) {
         V.width = GetRenderWidth();
         V.height = GetRenderHeight();
-        C.halfHeight = V.height / 2.0f;
+        RecomputeValues();
     }
 
     // Camera horizontal rotation
@@ -341,82 +467,22 @@ static void Render(void) {
     // Draw the sky
     DrawRectangle(0, 0, V.width, V.height / 2, BLUE);
 
-    float halfHeight = V.height / 2.0f;
+    // Compute left most pixel position
+    Vector2 cameraPlaneLeft = Vector2Subtract(C.playerDirection, C.cameraPlane);
+    // Compute right most pixel position
+    Vector2 cameraPlaneRight = Vector2Add(C.playerDirection, C.cameraPlane);
     // Compute the cell coordinates
     Vector2 worldCoords = { .x = (int) P.position.x, .y = (int) P.position.y };
     // Compute the coordinates inside the cell
     Vector2 tileCoords = Vector2Subtract(P.position, worldCoords);
-    // Calculate the angle increment for each ray
-    float angleStep = V.fov / V.rays;
-    // Calculate the angle for the first ray
-    float angleStart = P.rotation - V.fov / 2.0f;
-    // Calculate the width of each ray
-    float thickness = (float) V.width / V.rays;
-    // Check if we need an extra ray to cover the entire screen
-    int rays = (V.width % V.rays) ? (V.rays + 1) : V.rays;
-    for (int n = 0; n < rays; n++) {
-        // Compute the angle of the n-th ray
-        float angle = angleStart + n * angleStep;
-        // planeX = coordinate (between -1 and 1) of the ray on the x-axis of the plane
-        float planeX = (2.0f * ((float) n / rays)) - 1.0f; 
-        // Trace the ray
-        HitDetails hit = TraceHorizontalRay(&worldCoords, &tileCoords, angle, planeX);
-        // Check if the ray hit a non empty cell
-        if (hit.textureId) {
-            // If we did, get the cell's texture
-            TileTexture *texture = T[hit.textureId - 1];
-            // Calculate the height of the pixel column
-            float lineHeight = M->maxWallHeight / hit.distance;
-            // Calculate the height of each pixel in the column
-            float dotHeight = (float) lineHeight / texture->height;
-            // Find the corresponding texture column
-            int textureColumn = hit.textureColumnOffset * texture->width;
-            // Clip the height of the column if it's higher than the
-            // viewport's height and offset the texture 
-            float textureOffset = 0.0f;
-            if (lineHeight > V.height) {
-                textureOffset = (lineHeight - V.height) / 2.0f;
-                lineHeight = V.height;
-            }
-            // Compute the starting point of the column
-            float xStart = n * thickness;
-            float yStart = halfHeight - lineHeight / 2.0f - textureOffset;
-            // Draw each pixel (of size thickness x dotHeight)
-            // in the texture column
-            for (int i = 0; i < texture->height; i++) {
-                Color color = (texture->data[i * texture->width + textureColumn]) ? GOLD : WHITE;
-                // Shade the color accordingly
-                color.r *= hit.shade;
-                color.g *= hit.shade;
-                color.b *= hit.shade;
-                // Draw the i-th pixel
-                DrawRectangle(xStart, yStart + roundf(i * dotHeight), ceilf(thickness), ceilf(dotHeight), color);
-            }
-        }
+    // Draw floors and ceilings
+    for (int r = 0; r < C.rows / 2; r++) {
+        DrawRow(cameraPlaneLeft, cameraPlaneRight, r);
     }
-
-    // Draw 2D view (debug only!!!)
-    //{
-    //    for (int y = 0; y < M->height; y++) {
-    //        for (int x = 0; x < M->width; x++) {
-    //            int v = M->data[y * M->width + x].wall;
-    //            DrawRectangle(x * 64, y * 64, 64 - 1, 64 - 1, (v) ? GRAY : WHITE);
-    //        }
-    //    }
-    //    for (int i = 0; i < rays; i++) {
-    //        float angle = angleStart + i * angleStep;
-    //        // planeX = coordinate (between -1 and 1) of the ray on the x-axis of the plane
-    //        float planeX = (2.0f * ((float) i / rays)) - 1.0f; 
-    //        HitDetails hit = TraceHorizontalRay(&worldCoords, &tileCoords, angle, planeX);
-    //        DrawLine(P.position.x * 64, P.position.y * 64, hit.coordinates.x * 64, hit.coordinates.y * 64, GREEN);
-    //    }
-    //    DrawLine(P.position.x * 64, P.position.y * 64, (P.position.x + C.playerDirection.x) * 64, (P.position.y + C.playerDirection.y) * 64, BLUE);
-    //    DrawLine(P.position.x * 64, P.position.y * 64, (P.position.x + C.playerDirection.x + C.cameraPlane.x) * 64, (P.position.y + C.playerDirection.y + C.cameraPlane.y) * 64, BLACK);
-    //    DrawLine(P.position.x * 64, P.position.y * 64, (P.position.x + C.playerDirection.x - C.cameraPlane.x) * 64, (P.position.y + C.playerDirection.y - C.cameraPlane.y) * 64, BLACK);
-    //    DrawLine((P.position.x + C.playerDirection.x) * 64, (P.position.y + C.playerDirection.y) * 64, (P.position.x + C.playerDirection.x + C.cameraPlane.x) * 64, (P.position.y + C.playerDirection.y + C.cameraPlane.y) * 64, DARKGREEN);
-    //    DrawLine((P.position.x + C.playerDirection.x) * 64, (P.position.y + C.playerDirection.y) * 64, (P.position.x + C.playerDirection.x - C.cameraPlane.x) * 64, (P.position.y + C.playerDirection.y - C.cameraPlane.y) * 64, DARKGREEN);
-    //    DrawRectangle(P.position.x * 64 - 4, P.position.y * 64 - 4, 8, 8, RED);
-    //}
+    // Draw walls
+    for (int c = 0; c < C.columns; c++) {
+        DrawColumn(&worldCoords, &tileCoords, c);
+    }
 
     DrawFPS(10, 10);
 }
@@ -429,8 +495,7 @@ static void Init(void) {
     );
     SetWindowState(FLAG_WINDOW_RESIZABLE);
     DisableCursor();
-    C.halfHeight = V.height / 2.0f;
-    C.cameraPlaneHalfWidth = 1.0f / (2.0f * tanf(V.fov / 2.0f));
+    RecomputeValues();
     C.prevTime = GetTime();
 }
 
