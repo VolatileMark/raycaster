@@ -2,12 +2,12 @@
 #include <raymath.h>
 
 // Defaults
-#define DEFAULT_WINDOW_TITLE    "RECOIL"
-#define DEFAULT_VIEW_WIDTH      1366
-#define DEFAULT_VIEW_HEIGHT     768
-#define DEFAULT_VIEW_DOF        16
-#define DEFAULT_VIEW_FOV        (66.0f * DEG2RAD)
-#define DEFAULT_VIEW_RAYS       0.25f
+#define DEFAULT_WINDOW_TITLE        "RECOIL"
+#define DEFAULT_VIEWPORT_WIDTH      1366
+#define DEFAULT_VIEWPORT_HEIGHT     768
+#define DEFAULT_VIEWPORT_DOF        16
+#define DEFAULT_VIEWPORT_FOV        (66.0f * DEG2RAD)
+#define DEFAULT_VIEWPORT_SCALING    0.25f
 
 typedef struct {
     int width;
@@ -15,7 +15,7 @@ typedef struct {
     int dof;
     float fov;
     float scaling;
-} View;
+} Viewport;
 
 typedef struct {
     int columns;
@@ -70,16 +70,16 @@ static Map TestMap = {
     .maxWallHeight = 800.0f,
     .data = {
         {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0},
-        {0, 1, 0}, {1, 0, 1}, {1, 0, 1}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
-        {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
-        {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
-        {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
-        {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
-        {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
-        {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
-        {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
-        {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
-        {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
+        {0, 1, 0}, {1, 0, 1}, {1, 0, 1}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {1, 0, 1}, {0, 1, 0},
+        {0, 1, 0}, {0, 0, 1}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {1, 0, 1}, {0, 1, 0},
+        {0, 1, 0}, {0, 0, 1}, {0, 0, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 0, 0}, {1, 0, 1}, {0, 1, 0},
+        {0, 1, 0}, {0, 0, 1}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
+        {0, 1, 0}, {0, 0, 1}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
+        {0, 1, 0}, {1, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
+        {0, 1, 0}, {1, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
+        {0, 1, 0}, {1, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
+        {0, 1, 0}, {1, 0, 1}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
+        {0, 1, 0}, {1, 0, 1}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
         {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0},
     }
 };
@@ -106,12 +106,12 @@ static TileTexture *T[] = {
 static Computed C = {0};
 static PlayerInput I = {false};
 static Map *M = &TestMap;
-static View V = {
-    .width = DEFAULT_VIEW_WIDTH,
-    .height = DEFAULT_VIEW_HEIGHT,
-    .scaling = DEFAULT_VIEW_RAYS,
-    .dof = DEFAULT_VIEW_DOF,
-    .fov = DEFAULT_VIEW_FOV,
+static Viewport V = {
+    .width = DEFAULT_VIEWPORT_WIDTH,
+    .height = DEFAULT_VIEWPORT_HEIGHT,
+    .scaling = DEFAULT_VIEWPORT_SCALING,
+    .dof = DEFAULT_VIEWPORT_DOF,
+    .fov = DEFAULT_VIEWPORT_FOV,
 };
 static Player P = {
     .position = {
@@ -148,76 +148,56 @@ static void RecomputeValues(void) {
     C.rowPixelHeight = (float) V.height / C.rows;
 }
 
-//static void DrawRow(Vector2 leftMostPixel, Vector2 rightMostPixel, int n) {
-//    int p = n - C.viewportHalfHeight;
-//    float rowDistance = -C.viewportHalfHeight / p;
-//    Vector2 step = Vector2Scale(Vector2Subtract(rightMostPixel, leftMostPixel), rowDistance / C.columns);
-//    Vector2 position = Vector2Add(P.position, Vector2Scale(leftMostPixel, rowDistance));
-//    for (int x = 0; x < C.columns; x++) {
-//        int cellX = (int) position.x;
-//        int cellY = (int) position.y;
-//        int cellOffset = cellY * M->width + cellX;
-//        if (cellOffset < 0 || cellOffset >= MAPSZ) {
-//            break;
-//        }
-//        int cellId = M->data[cellOffset].ceiling;
-//        if (!cellId) {
-//            continue;
-//        }
-//        TileTexture *texture = T[cellId - 1];
-//        int textureX = (int) (texture->width * (position.x - (float) cellX));
-//        int textureY = (int) (texture->height * (position.y - (float) cellY));
-//
-//        position.x += step.x;
-//        position.y += step.y;
-//
-//        int textureOffset = textureY * texture->width + textureX;
-//        if (textureOffset < 0 || textureOffset >= texture->width * texture->height) {
-//            continue;
-//        }
-//        Color color = (texture->data[textureOffset]) ? RED : GREEN;
-//        if (n < C.cameraPlaneHalfWidth) {
-//            color.r *= 0.75f;
-//            color.g *= 0.75f;
-//            color.b *= 0.75f;
-//        }
-//
-//        float xStart = x * C.columnPixelWidth;
-//        float yStart = n * C.rowPixelHeight;
-//        DrawRectangle(xStart, yStart, roundf(C.columnPixelWidth), roundf(C.rowPixelHeight), color);
-//    }
-//}
-
 static void DrawRow(Vector2 cameraPlaneLeft, Vector2 cameraPlaneRight, int n) {
+    // Calculate the row's y pixel position on the screen
     float y = n * C.rowPixelHeight;
-    int heightOnScreen = C.viewportHalfHeight - y;
-    float distance = C.viewportHalfHeight / heightOnScreen;
+    // Calculate how many pixel aways the row is from the horizon
+    int pixelsFromHorizon = C.viewportHalfHeight - y;
+    // Compute the distance of the pixel from the camera plane
+    // (the further the row is from the center of the screen,
+    // the closer it should be to the camera)
+    // distance = +1 <== pixelsFromHorizon = C.viewportHalfHeight <== y = 0
+    // distance = +inf <== pixelsFromHorizon = 0 <== y = C.viewportHalfHeight
+    float distance = C.viewportHalfHeight / pixelsFromHorizon;
+    // Compute the step for each pixel in the row
     Vector2 step = Vector2Scale(Vector2Subtract(cameraPlaneRight, cameraPlaneLeft), distance / C.columns);
+    // Compute the starting position
     Vector2 position = Vector2Add(P.position, Vector2Scale(cameraPlaneLeft, distance));
     for (int x = 0; x < C.columns; x++) {
+        // Get the current cell position
         int cellX = (int) position.x;
         int cellY = (int) position.y;
+        // Compute the map offset and check if it's
+        // in inside the map
         int cellOffset = cellY * M->width + cellX;
-        if (cellOffset < 0 || cellOffset >= MAPSZ) {
-            break;
-        }
-        for (int floor = 0; floor < 2; floor++) {
-            int cellId = (floor) ? M->data[cellOffset].floor : M->data[cellOffset].ceiling;
-            if (!cellId) {
-                continue;
+        if (cellOffset >= 0 && cellOffset < MAPSZ) {
+            // Draw the ceiling first and the the floor
+            for (int floor = 0; floor < 2; floor++) {
+                // Get the current cell id
+                int cellId = (floor) ? M->data[cellOffset].floor : M->data[cellOffset].ceiling;
+                // If the cell is empty, skip the draw call
+                if (!cellId) {
+                    continue;
+                }
+                // If it's not, get the texture
+                TileTexture *texture = T[cellId - 1];
+                // Compute the texture coordinates
+                int textureX = texture->width * (position.x - (float) cellX);
+                int textureY = texture->height * (position.y - (float) cellY);
+                // Compute the offset inside the texture and check if it's in bounds
+                int textureOffset = textureY * texture->width + textureX;
+                if (textureOffset < 0 || textureOffset >= texture->width * texture->height) {
+                    continue;
+                }
+                // Sample the texture
+                Color color = (texture->data[textureOffset]) ? RED : GREEN;
+                // Draw the pixel onto the screen
+                int xStart = x * C.columnPixelWidth;
+                int yStart = (floor) ? (V.height - y) : y;
+                DrawRectangle(xStart, yStart, ceilf(C.columnPixelWidth), ceilf(C.rowPixelHeight), color);
             }
-            TileTexture *texture = T[cellId - 1];
-            int textureX = texture->width * (position.x - (float) cellX);
-            int textureY = texture->height * (position.y - (float) cellY);
-            int textureOffset = textureY * texture->width + textureX;
-            if (textureOffset < 0 || textureOffset >= texture->width * texture->height) {
-                continue;
-            }
-            Color color = (texture->data[textureOffset]) ? RED : GREEN;
-            int xStart = x * C.columnPixelWidth;
-            int yStart = (floor) ? (V.height - y) : y;
-            DrawRectangle(xStart, yStart, ceilf(C.columnPixelWidth), ceilf(C.rowPixelHeight), color);
         }
+        // Step the ray
         position.x += step.x;
         position.y += step.y;
     }
