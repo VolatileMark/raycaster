@@ -52,12 +52,18 @@ void main() {
         return;
     }
     
+    // Compute the starting map coordinates
     ivec2 mapCoords = ivec2(playerPosition);
+    // Compute the player's coordinates inside the tile
     vec2 tileCoords = playerPosition - mapCoords;
 
+    // cameraX = coordinate (between -1 and 1) of the ray on the x-axis
+    //           of the camera plane
     float cameraX = (2.0f * (float(n) / viewportWidth)) - 1.0f;
     
+    // Compute the angle of the ray
     float angle = columnAngleStart + n * columnAngleStep;
+    // Clamp the angle between 0 and 2*PI
     while (angle > 2 * PI) {
         angle -= 2 * PI;
     }
@@ -65,21 +71,36 @@ void main() {
         angle += 2 * PI;
     }
 
+    // Compute the ray direction
     vec2 rayDirection = playerDirection + cameraPlane * cameraX;
 
+    // Compute the distance along the ray direction to the next intersection
+    // with the y-axis
     float yDeltaDistance = (rayDirection.x == 0) ? 1e30 : abs(1.0 / rayDirection.x);
+    // Compute the distance along the ray direction to the next intersection
+    // with the x-axis
     float xDeltaDistance = (rayDirection.y == 0) ? 1e30 : abs(1.0 / rayDirection.y);
 
+    // Compute the distance in the horizontal direction of the ray to
+    // the border of the cell
     float xDistance = (rayDirection.x > 0.0) ? (1.0 - tileCoords.x) : tileCoords.x;
+    // Compute the distance in the vertical direction of the ray to
+    // the border of the cell
     float yDistance = (rayDirection.y > 0.0) ? (1.0 - tileCoords.y) : tileCoords.y;
 
+    // Compute the distance along the ray direction to the first intersection
+    // with the y-axis
     float yIntersectionDistance = yDeltaDistance * xDistance;
+    // Compute the distance along the ray direction to the first intersection
+    // with the x-axis
     float xIntersectionDistance = xDeltaDistance * yDistance;
 
+    // Find the direction we are moving in the map
     ivec2 step = ivec2(sign(rayDirection));
 
     int cellId = 0;
     bool vertical = false;
+    // Step the rays until one hits
     for (int i = 0; i < depthOfField; i++) {
         int mapOffset = mapCoords.y * mapWidth + mapCoords.x;
         if (mapOffset >= 0 && mapOffset < (mapWidth * mapHeight) && (cellId = mapData[mapOffset].wall) != 0) {
@@ -96,10 +117,13 @@ void main() {
         }
     }
 
+    // Check if the ray hit an empty cell
     if (cellId == 0) {
         return;
     }
 
+    // If we didn't, store the hit information for the first
+    // ray to hit a wall
     float rayDistance, brightness;
     if (vertical) {
         rayDistance = yIntersectionDistance - yDeltaDistance;
@@ -108,7 +132,6 @@ void main() {
         rayDistance = xIntersectionDistance - xDeltaDistance;
         brightness = 0.85;
     }
-    
     vec2 coordinates = playerPosition + rayDirection * rayDistance;
     float textureColumnOffset;
     if (vertical) {
