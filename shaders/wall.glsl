@@ -5,11 +5,19 @@
 layout (local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
 struct Column {
+    int padding;
     int textureId;
     float brightness;
     float lineHeight;
     float lineOffset;
     float textureColumnOffset;
+};
+
+struct Tile {
+    int ceiling;
+    int wall;
+    int floor;
+    int padding;
 };
 
 layout (std430, binding = 1) writeonly restrict buffer Columns {
@@ -29,7 +37,7 @@ layout (std430, binding = 3) readonly restrict buffer MapData {
     int mapWidth;
     int mapHeight;
     float maxWallHeight;
-    ivec3 mapData[];
+    Tile mapData[];
 };
 
 layout (std430, binding = 4) readonly restrict buffer FrameData {
@@ -47,17 +55,17 @@ void main() {
     ivec2 mapCoords = ivec2(playerPosition);
     vec2 tileCoords = playerPosition - mapCoords;
 
-    float cameraX = (2.0f * (float(n) / float(viewportWidth))) - 1.0f;
+    float cameraX = (2.0f * (float(n) / viewportWidth)) - 1.0f;
     
     float angle = columnAngleStart + n * columnAngleStep;
-    while (angle < 0.0) {
-        angle += 2 * PI;
-    }
     while (angle > 2 * PI) {
         angle -= 2 * PI;
     }
+    while (angle < 0.0) {
+        angle += 2 * PI;
+    }
 
-    vec2 rayDirection = playerPosition + cameraPlane * cameraX;
+    vec2 rayDirection = playerDirection + cameraPlane * cameraX;
 
     float yDeltaDistance = (rayDirection.x == 0) ? 1e30 : abs(1.0 / rayDirection.x);
     float xDeltaDistance = (rayDirection.y == 0) ? 1e30 : abs(1.0 / rayDirection.y);
@@ -69,14 +77,12 @@ void main() {
     float xIntersectionDistance = xDeltaDistance * yDistance;
 
     ivec2 step = ivec2(sign(rayDirection));
-    
-    float lineOffset = float(step.x);
-    
+
     int cellId = 0;
     bool vertical = false;
     for (int i = 0; i < depthOfField; i++) {
         int mapOffset = mapCoords.y * mapWidth + mapCoords.x;
-        if (mapOffset >= 0 && mapOffset < (mapWidth * mapHeight) && (cellId = mapData[mapOffset].y) != 0) {
+        if (mapOffset >= 0 && mapOffset < (mapWidth * mapHeight) && (cellId = mapData[mapOffset].wall) != 0) {
             break;
         }
         if (yIntersectionDistance < xIntersectionDistance) {
@@ -114,15 +120,15 @@ void main() {
     }
 
     float lineHeight = maxWallHeight / rayDistance;
-    //float lineOffset = 0.0;
-    //if (lineHeight > viewportHeight) {
-    //    lineOffset = (lineHeight - viewportHeight) / 2.0;
-    //    lineHeight = viewportHeight;
-    //}
+    float lineOffset = 0.0;
+    if (lineHeight > viewportHeight) {
+        lineOffset = (lineHeight - viewportHeight) / 2.0;
+        lineHeight = viewportHeight;
+    }
 
     outputData[n].textureId = cellId - 1;
     outputData[n].brightness = brightness;
     outputData[n].lineHeight = lineHeight;
-    outputData[n].lineOffset = lineOffset;
+    outputData[n].lineOffset = mapData[0].ceiling;
     outputData[n].textureColumnOffset = textureColumnOffset;
 }

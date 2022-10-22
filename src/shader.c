@@ -46,46 +46,43 @@ typedef struct {
     int data[];
 } TileTexture;
 
-struct Tile {
+typedef struct {
     int ceiling;
     int wall;
     int floor;
-} __attribute__((packed));
-typedef struct Tile Tile;
+    int padding;
+} Tile;
 
-struct Map {
+typedef struct {
     int width;
     int height;
     float maxWallHeight;
     Tile data[];
-} __attribute__((packed));
-typedef struct Map Map;
+} Map;
 
-struct Column {
+typedef struct {
+    int padding;
     int textureId;
     float brightness;
     float lineHeight;
     float lineOffset;
     float textureColumnOffset;
-} __attribute__((packed));
-typedef struct Column Column;
+} Column;
 
-struct Constants {
+typedef struct {
     int depthOfField;
     int viewportWidth;
     int viewportHeight;
     float viewportHalfHeight;
     float columnAngleStart;
     float columnAngleStep;
-} __attribute__((packed));
-typedef struct Constants Constants;
+} Constants;
 
-struct FrameData {
+typedef struct {
     Vector2 playerPosition;
     Vector2 playerDirection;
     Vector2 cameraPlane;
-} __attribute__((packed));
-typedef struct FrameData FrameData;
+} FrameData;
 
 typedef struct {
     unsigned int ssboColumnsData;
@@ -103,18 +100,18 @@ static Map TestMap = {
     .height = 12,
     .maxWallHeight = 800.0f,
     .data = {
-        {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0},
-        {0, 1, 0}, {1, 0, 1}, {1, 0, 1}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {1, 0, 1}, {0, 1, 0},
-        {0, 1, 0}, {0, 0, 1}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {1, 0, 1}, {0, 1, 0},
-        {0, 1, 0}, {0, 0, 1}, {0, 0, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 0, 0}, {1, 0, 1}, {0, 1, 0},
-        {0, 1, 0}, {0, 0, 1}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
-        {0, 1, 0}, {0, 0, 1}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
-        {0, 1, 0}, {1, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
-        {0, 1, 0}, {1, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
-        {0, 1, 0}, {1, 0, 0}, {0, 0, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
-        {0, 1, 0}, {1, 0, 1}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
-        {0, 1, 0}, {1, 0, 1}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 1, 0},
-        {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0},
+        {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0},
+        {0, 1, 0, 0}, {1, 0, 1, 0}, {1, 0, 1, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {1, 0, 1, 0}, {0, 1, 0, 0},
+        {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {1, 0, 1, 0}, {0, 1, 0, 0},
+        {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 0, 0, 0}, {1, 0, 1, 0}, {0, 1, 0, 0},
+        {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 0, 0},
+        {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 0, 0},
+        {0, 1, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 0, 0},
+        {0, 1, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 0, 0},
+        {0, 1, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 0, 0},
+        {0, 1, 0, 0}, {1, 0, 1, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 0, 0},
+        {0, 1, 0, 0}, {1, 0, 1, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 0, 0},
+        {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0}, {0, 1, 0, 0},
     }
 };
 
@@ -160,9 +157,12 @@ static Player P = {
 // Useful defines
 #define MAPSZ (M->width * M->height)
 #define HALF_PI (PI / 2.0f)
-#define absf(x) ((x < 0.0f) ? -x : x)
 
 static void OnResize(void) {
+    // Update viewport size
+    V.width = GetRenderWidth();
+    V.height = GetRenderHeight();
+    // Compute the vertical center of the viewport
     C.viewportHalfHeight = V.height / 2.0f;
     // Compute half the width of the camera plane
     C.cameraPlaneHalfWidth = 1.0f / (2.0f * tanf(V.fov / 2.0f));
@@ -170,6 +170,25 @@ static void OnResize(void) {
     C.columnAngleStep = V.fov / V.width;
     // Calculate the angle for the first column ray
     C.columnAngleStart = P.rotation - V.fov / 2.0f;
+    // Recreate columns shader buffer
+    if (S.ssboColumnsData) {
+        rlUnloadShaderBuffer(S.ssboColumnsData);
+    }
+    S.ssboColumnsData = rlLoadShaderBuffer(sizeof(Column) * V.width, NULL, RL_DYNAMIC_COPY);
+    // Update shader buffers
+    rlUpdateShaderBufferElements(S.ssboConstants, &(Constants) {
+        .depthOfField = V.dof,
+        .viewportWidth = V.width,
+        .viewportHeight = V.height,
+        .viewportHalfHeight = C.viewportHalfHeight,
+        .columnAngleStart = C.columnAngleStart,
+        .columnAngleStep = C.columnAngleStep,
+    }, sizeof(Constants), 0);
+    // Recreate the render texture
+    if (S.renderTexture.id) {
+        UnloadRenderTexture(S.renderTexture);
+    }
+    S.renderTexture = LoadRenderTexture(V.width, V.height);
 }
 
 static void ProcessInput(void) {
@@ -198,14 +217,10 @@ static void Update(void) {
     float nowTime = GetTime();
     float delta = nowTime - C.prevTime;
     C.prevTime = nowTime;
-
     // Resize viewport and recalculate halfHeight and planeDistance
     if (IsWindowResized()) {
-        V.width = GetRenderWidth();
-        V.height = GetRenderHeight();
         OnResize();
     }
-
     // Camera horizontal rotation
     P.rotation += I.xMouseDelta * P.rotationSpeed * delta;
     if (P.rotation < 0.0f) {
@@ -219,7 +234,6 @@ static void Update(void) {
     // Compute camera plane offset
     C.cameraPlane.x = -C.playerDirection.y * C.cameraPlaneHalfWidth;
     C.cameraPlane.y = +C.playerDirection.x * C.cameraPlaneHalfWidth;
-
     // Calculate the sign of the direction along which we are moving
     // on the x and y axis respectively
     float xSign = (P.rotation <= HALF_PI || P.rotation > 3 * HALF_PI) ? +1.0f : -1.0f;
@@ -304,18 +318,32 @@ static void Render(void) {
     rlComputeShaderDispatch((unsigned int) ceilf((float) V.width / 256), 1, 1);
     rlDisableShader();
 
-    //Constants c;
-    //rlReadShaderBufferElements(S.ssboConstants, &c, sizeof(Constants), 0);
-    //TraceLog(LOG_INFO, "angleStart:%f angleStep:%f", c.columnAngleStart, c.columnAngleStep);
-    //Column col[200];
-    //rlReadShaderBufferElements(S.ssboColumnsData, &col, sizeof(Column) * 200, 0);
-    //TraceLog(LOG_INFO, "(%f %f)", col[0].lineOffset, col[199].lineOffset);
-
     rlBindShaderBuffer(S.ssboColumnsData, 1);
     rlBindShaderBuffer(S.ssboConstants, 2);
     BeginShaderMode(S.renderPipeline);
     DrawTexture(S.renderTexture.texture, 0, 0, WHITE);
     EndShaderMode();
+
+    //#define COLUMNS 256
+    //Column col[COLUMNS];
+    //rlReadShaderBufferElements(S.ssboColumnsData, &col, sizeof(Column) * COLUMNS, 0);
+    //for (int y = 0; y < M->height; y++) {
+    //    for (int x = 0; x < M->width; x++) {
+    //        if (M->data[y * M->width + x].wall) {
+    //            DrawRectangle(x * 64, y * 64, 64 - 1, 64 - 1, GRAY);
+    //        } else {
+    //            DrawRectangle(x * 64, y * 64, 64 - 1, 64 - 1, WHITE);
+    //        }
+    //    }
+    //}
+    //for (int i = 0; i < COLUMNS - 1; i++) {
+    //    DrawLineV(Vector2Scale(P.position, 64), Vector2Scale(col[i].intersection, 64), GREEN);
+    //}
+    //DrawLineEx(Vector2Scale(P.position, 64), Vector2Scale(col[COLUMNS - 1].intersection, 64), 4.0f, BLACK);
+    //DrawRectangle(P.position.x * 64 - 4, P.position.y * 64 - 4, 8, 8, RED);
+    //DrawLine(P.position.x * 64, P.position.y * 64, (P.position.x + C.playerDirection.x) * 64, (P.position.y + C.playerDirection.y) * 64, DARKBLUE);
+    //DrawLine((P.position.x + C.playerDirection.x) * 64, (P.position.y + C.playerDirection.y) * 64,(P.position.x + C.playerDirection.x + C.cameraPlane.x) * 64, (P.position.y + C.playerDirection.y + C.cameraPlane.y) * 64, GOLD);
+    //DrawLine((P.position.x + C.playerDirection.x) * 64, (P.position.y + C.playerDirection.y) * 64,(P.position.x + C.playerDirection.x - C.cameraPlane.x) * 64, (P.position.y + C.playerDirection.y - C.cameraPlane.y) * 64, GOLD);
 
     DrawFPS(10, 10);
 }
@@ -329,8 +357,6 @@ static void Init(void) {
     );
     // Make window resizable
     SetWindowState(FLAG_WINDOW_RESIZABLE);
-    // Initialize computed values
-    OnResize();
     // Load fragment shader
     S.renderPipeline = LoadShader(NULL, "shaders/frag.glsl");
     // Load wall compute shader
@@ -338,23 +364,14 @@ static void Init(void) {
     unsigned int wallComputeShader = rlCompileShader(wallComputeSource, RL_COMPUTE_SHADER);
     S.wallCompute = rlLoadComputeShaderProgram(wallComputeShader);
     UnloadFileText(wallComputeSource);
-    // Create shader buffers
-    S.ssboColumnsData = rlLoadShaderBuffer(sizeof(Column) * V.width, NULL, RL_DYNAMIC_COPY);
+    // Create shader buffers (S.ssboColumnData is created in OnResize())
     S.ssboMapData = rlLoadShaderBuffer(sizeof(Map) + MAPSZ * sizeof(Tile), NULL, RL_STATIC_DRAW);
     S.ssboConstants = rlLoadShaderBuffer(sizeof(Constants), NULL, RL_STATIC_DRAW);
     S.ssboFrameData = rlLoadShaderBuffer(sizeof(FrameData), NULL, RL_DYNAMIC_DRAW);
-    // Initialize buffers
-    rlUpdateShaderBufferElements(S.ssboConstants, &(Constants) {
-        .depthOfField = V.dof,
-        .viewportWidth = V.width,
-        .viewportHeight = V.height,
-        .viewportHalfHeight = C.viewportHalfHeight,
-        .columnAngleStart = C.columnAngleStart,
-        .columnAngleStep = C.columnAngleStep,
-    }, sizeof(Constants), 0);
+    // Initialize computed values
+    OnResize();
+    // Initialize buffers (S.ssboConstants is initialized in OnResize())
     rlUpdateShaderBufferElements(S.ssboMapData, M, sizeof(Map) + MAPSZ * sizeof(Tile), 0);
-    // Create render texture
-    S.renderTexture = LoadRenderTexture(V.width, V.height);
     // Capture mouse
     DisableCursor();
     // Initialize previous frame time to now

@@ -5,11 +5,12 @@ in vec2 fragTexCoord;
 out vec4 finalColor;
 
 struct Column {
+    int padding;
     int textureId;
     float brightness;
     float lineHeight;
+    float lineOffset;
     float textureColumnOffset;
-    float textureOffset;
 };
 
 layout (std430, binding = 1) readonly buffer Columns {
