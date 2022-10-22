@@ -31,6 +31,8 @@ layout (std430, binding = 2) readonly restrict buffer Constants {
     float viewportHalfHeight;
     float columnAngleStart;
     float columnAngleStep;
+    ivec2 tileSize;
+    ivec2 tileMapSize;
 };
 
 layout (std430, binding = 3) readonly restrict buffer MapData {
@@ -42,6 +44,8 @@ layout (std430, binding = 3) readonly restrict buffer MapData {
 
 layout (std430, binding = 4) readonly restrict buffer FrameData {
     vec2 playerPosition;
+    ivec2 playerMapCoords;
+    vec2 playerTileCoords;
     vec2 playerDirection;
     vec2 cameraPlane;
 };
@@ -52,11 +56,6 @@ void main() {
         return;
     }
     
-    // Compute the starting map coordinates
-    ivec2 mapCoords = ivec2(playerPosition);
-    // Compute the player's coordinates inside the tile
-    vec2 tileCoords = playerPosition - mapCoords;
-
     // cameraX = coordinate (between -1 and 1) of the ray on the x-axis
     //           of the camera plane
     float cameraX = (2.0f * (float(n) / viewportWidth)) - 1.0f;
@@ -83,10 +82,10 @@ void main() {
 
     // Compute the distance in the horizontal direction of the ray to
     // the border of the cell
-    float xDistance = (rayDirection.x > 0.0) ? (1.0 - tileCoords.x) : tileCoords.x;
+    float xDistance = (rayDirection.x > 0.0) ? (1.0 - playerTileCoords.x) : playerTileCoords.x;
     // Compute the distance in the vertical direction of the ray to
     // the border of the cell
-    float yDistance = (rayDirection.y > 0.0) ? (1.0 - tileCoords.y) : tileCoords.y;
+    float yDistance = (rayDirection.y > 0.0) ? (1.0 - playerTileCoords.y) : playerTileCoords.y;
 
     // Compute the distance along the ray direction to the first intersection
     // with the y-axis
@@ -97,6 +96,9 @@ void main() {
 
     // Find the direction we are moving in the map
     ivec2 step = ivec2(sign(rayDirection));
+
+    // Ray's map coordinates
+    ivec2 mapCoords = playerMapCoords;
 
     int cellId = 0;
     bool vertical = false;
@@ -145,13 +147,13 @@ void main() {
     float lineHeight = maxWallHeight / rayDistance;
     float lineOffset = 0.0;
     if (lineHeight > viewportHeight) {
-        lineOffset = (lineHeight - viewportHeight) / 2.0;
+        lineOffset = lineHeight - viewportHeight;
         lineHeight = viewportHeight;
     }
 
     outputData[n].textureId = cellId - 1;
     outputData[n].brightness = brightness;
     outputData[n].lineHeight = lineHeight;
-    outputData[n].lineOffset = mapData[0].ceiling;
+    outputData[n].lineOffset = lineOffset;
     outputData[n].textureColumnOffset = textureColumnOffset;
 }

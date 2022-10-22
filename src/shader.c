@@ -76,15 +76,20 @@ typedef struct {
     float viewportHalfHeight;
     float columnAngleStart;
     float columnAngleStep;
+    int tileSize[2];
+    int tileMapSize[2];
 } Constants;
 
 typedef struct {
     Vector2 playerPosition;
+    int playerMapCoords[2];
+    Vector2 playerTileCoords;
     Vector2 playerDirection;
     Vector2 cameraPlane;
 } FrameData;
 
 typedef struct {
+    int tileMapLocation;
     unsigned int ssboColumnsData;
     unsigned int ssboConstants;
     unsigned int ssboMapData;
@@ -92,7 +97,8 @@ typedef struct {
     unsigned int wallCompute;
     Shader renderPipeline;
     RenderTexture2D renderTexture;
-} Shaders;
+    Texture2D tileMapTexture;
+} Graphics;
 
 // Test data
 static Map TestMap = {
@@ -133,7 +139,7 @@ static TileTexture *T[] = {
 };
 
 // Singletons
-static Shaders S = {0};
+static Graphics G = {0};
 static Computed C = {0};
 static PlayerInput I = {false};
 static Map *M = &TestMap;
@@ -170,24 +176,26 @@ static void OnResize(void) {
     // Calculate the angle for the first column ray
     C.columnAngleStart = P.rotation - V.fov / 2.0f;
     // Recreate columns shader buffer
-    if (S.ssboColumnsData) {
-        rlUnloadShaderBuffer(S.ssboColumnsData);
+    if (G.ssboColumnsData) {
+        rlUnloadShaderBuffer(G.ssboColumnsData);
     }
-    S.ssboColumnsData = rlLoadShaderBuffer(sizeof(Column) * V.width, NULL, RL_DYNAMIC_COPY);
+    G.ssboColumnsData = rlLoadShaderBuffer(sizeof(Column) * V.width, NULL, RL_DYNAMIC_COPY);
     // Update shader buffers
-    rlUpdateShaderBufferElements(S.ssboConstants, &(Constants) {
+    rlUpdateShaderBufferElements(G.ssboConstants, &(Constants) {
         .depthOfField = V.dof,
         .viewportWidth = V.width,
         .viewportHeight = V.height,
         .viewportHalfHeight = C.viewportHalfHeight,
         .columnAngleStart = C.columnAngleStart,
         .columnAngleStep = C.columnAngleStep,
+        .tileSize = { 16, 16 },
+        .tileMapSize = { 16, 16 }
     }, sizeof(Constants), 0);
     // Recreate the render texture
-    if (S.renderTexture.id) {
-        UnloadRenderTexture(S.renderTexture);
+    if (G.renderTexture.id) {
+        UnloadRenderTexture(G.renderTexture);
     }
-    S.renderTexture = LoadRenderTexture(V.width, V.height);
+    G.renderTexture = LoadRenderTexture(V.width, V.height);
 }
 
 static void ProcessInput(void) {
@@ -300,27 +308,31 @@ static void Update(void) {
 }
 
 static void Render(void) {
-    ClearBackground(BLACK);
-    // Draw the sky
-    //DrawRectangle(0, 0, V.width, V.height / 2, BLUE);
+    // Compute the starting map coordinates
+    Vector2 worldCoords = { (int) P.position.x, (int) P.position.y };
+    // Compute the player's coordinates inside the tile
+    Vector2 tileCoords = Vector2Subtract(P.position, worldCoords);
 
-    rlUpdateShaderBufferElements(S.ssboFrameData, &(FrameData) {
+    rlUpdateShaderBufferElements(G.ssboFrameData, &(FrameData) {
         .playerPosition = P.position,
+        .playerMapCoords = { (int) worldCoords.x, (int) worldCoords.y },
+        .playerTileCoords = tileCoords,
         .playerDirection = C.playerDirection,
-        .cameraPlane = C.cameraPlane
+        .cameraPlane = C.cameraPlane,
     }, sizeof(FrameData), 0);
-    rlEnableShader(S.wallCompute);
-    rlBindShaderBuffer(S.ssboColumnsData, 1);
-    rlBindShaderBuffer(S.ssboConstants, 2);
-    rlBindShaderBuffer(S.ssboMapData, 3);
-    rlBindShaderBuffer(S.ssboFrameData, 4);
+    rlEnableShader(G.wallCompute);
+    rlBindShaderBuffer(G.ssboColumnsData, 1);
+    rlBindShaderBuffer(G.ssboConstants, 2);
+    rlBindShaderBuffer(G.ssboMapData, 3);
+    rlBindShaderBuffer(G.ssboFrameData, 4);
     rlComputeShaderDispatch((unsigned int) ceilf((float) V.width / 256), 1, 1);
     rlDisableShader();
 
-    rlBindShaderBuffer(S.ssboColumnsData, 1);
-    rlBindShaderBuffer(S.ssboConstants, 2);
-    BeginShaderMode(S.renderPipeline);
-    DrawTexture(S.renderTexture.texture, 0, 0, WHITE);
+    rlBindShaderBuffer(G.ssboColumnsData, 1);
+    rlBindShaderBuffer(G.ssboConstants, 2);
+    BeginShaderMode(G.renderPipeline);
+    SetShaderValueTexture(G.renderPipeline, G.tileMapLocation, G.tileMapTexture);
+    DrawTexture(G.renderTexture.texture, 0, 0, WHITE);
     EndShaderMode();
 
     //#define COLUMNS 256
@@ -356,21 +368,25 @@ static void Init(void) {
     );
     // Make window resizable
     SetWindowState(FLAG_WINDOW_RESIZABLE);
+    // Load tilemap
+    G.tileMapTexture = LoadTexture("assets/textures/tilemap.png");
     // Load fragment shader
-    S.renderPipeline = LoadShader(NULL, "shaders/frag.glsl");
+    G.renderPipeline = LoadShader(NULL, "shaders/frag.glsl");
     // Load wall compute shader
     char *wallComputeSource = LoadFileText("shaders/wall.glsl");
     unsigned int wallComputeShader = rlCompileShader(wallComputeSource, RL_COMPUTE_SHADER);
-    S.wallCompute = rlLoadComputeShaderProgram(wallComputeShader);
+    G.wallCompute = rlLoadComputeShaderProgram(wallComputeShader);
     UnloadFileText(wallComputeSource);
     // Create shader buffers (S.ssboColumnData is created in OnResize())
-    S.ssboMapData = rlLoadShaderBuffer(sizeof(Map) + MAPSZ * sizeof(Tile), NULL, RL_STATIC_DRAW);
-    S.ssboConstants = rlLoadShaderBuffer(sizeof(Constants), NULL, RL_STATIC_DRAW);
-    S.ssboFrameData = rlLoadShaderBuffer(sizeof(FrameData), NULL, RL_DYNAMIC_DRAW);
+    G.ssboMapData = rlLoadShaderBuffer(sizeof(Map) + MAPSZ * sizeof(Tile), NULL, RL_STATIC_DRAW);
+    G.ssboConstants = rlLoadShaderBuffer(sizeof(Constants), NULL, RL_STATIC_DRAW);
+    G.ssboFrameData = rlLoadShaderBuffer(sizeof(FrameData), NULL, RL_DYNAMIC_DRAW);
+    // Get tilemap uniform location
+    G.tileMapLocation = GetShaderLocation(G.renderPipeline, "tileMap");
     // Initialize computed values
     OnResize();
     // Initialize buffers (S.ssboConstants is initialized in OnResize())
-    rlUpdateShaderBufferElements(S.ssboMapData, M, sizeof(Map) + MAPSZ * sizeof(Tile), 0);
+    rlUpdateShaderBufferElements(G.ssboMapData, M, sizeof(Map) + MAPSZ * sizeof(Tile), 0);
     // Capture mouse
     DisableCursor();
     // Initialize previous frame time to now
@@ -378,13 +394,14 @@ static void Init(void) {
 }
 
 static void Shutdown(void) {
-    rlUnloadShaderBuffer(S.ssboFrameData);
-    rlUnloadShaderBuffer(S.ssboMapData);
-    rlUnloadShaderBuffer(S.ssboConstants);
-    rlUnloadShaderBuffer(S.ssboColumnsData);
-    rlUnloadShaderProgram(S.wallCompute);
-    UnloadShader(S.renderPipeline);
-    UnloadRenderTexture(S.renderTexture);
+    rlUnloadShaderBuffer(G.ssboFrameData);
+    rlUnloadShaderBuffer(G.ssboMapData);
+    rlUnloadShaderBuffer(G.ssboConstants);
+    rlUnloadShaderBuffer(G.ssboColumnsData);
+    rlUnloadShaderProgram(G.wallCompute);
+    UnloadShader(G.renderPipeline);
+    UnloadRenderTexture(G.renderTexture);
+    UnloadTexture(G.tileMapTexture);
     CloseWindow();
 }
 
