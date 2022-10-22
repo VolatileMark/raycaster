@@ -29,16 +29,18 @@ if (NOT raylib_FOUND) # If there's none, fetch and build raylib
     FetchContent_Populate(raylib)
     set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE) # don't build the supplied examples
     set(OpenGL_GL_PREFERENCE "GLVND")
+    set(GRAPHICS "GRAPHICS_API_OPENGL_43")
     add_subdirectory(${raylib_SOURCE_DIR} ${raylib_BINARY_DIR})
   endif()
 endif()
 
-include_directories(${PROJECT_SOURCE_DIR}/src)
-file(GLOB sources 
-    ${PROJECT_SOURCE_DIR}/src/*.c
-    ${PROJECT_SOURCE_DIR}/src/**/*.c
-)
-add_executable(${PROJECT_NAME} ${sources})
+#include_directories(${PROJECT_SOURCE_DIR}/src)
+#file(GLOB sources 
+#    ${PROJECT_SOURCE_DIR}/src/*.c
+#    ${PROJECT_SOURCE_DIR}/src/**/*.c
+#)
+#add_executable(${PROJECT_NAME} ${sources})
+add_executable(${PROJECT_NAME} src/shader.c)
 target_link_libraries(${PROJECT_NAME} raylib)
 
 # Web Configurations

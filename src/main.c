@@ -124,7 +124,7 @@ static Player P = {
 };
 
 // Useful defines
-#define MAPSZ (M->width * M->height)
+#define MAPSZ   (M->width * M->height)
 #define HALF_PI (PI / 2.0f)
 #define absf(x) ((x < 0.0f) ? -x : x)
 
@@ -254,7 +254,7 @@ static void DrawColumn(Vector2 *worldCoords, Vector2 *tileCoords, int n) {
     bool vertical = true;
     for (int i = 0; i < V.dof; i++) {
         int mapOffset = mapY * M->width + mapX;
-        if (mapOffset > 0 && mapOffset < MAPSZ && (cellId = M->data[mapOffset].wall)) {
+        if (mapOffset >= 0 && mapOffset < MAPSZ && (cellId = M->data[mapOffset].wall)) {
             break;
         }
         if (yIntersectionDistance < xIntersectionDistance) {
