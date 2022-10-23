@@ -7,7 +7,7 @@
 #define DEFAULT_WINDOW_TITLE        "RECOIL"
 #define DEFAULT_VIEWPORT_WIDTH      1366
 #define DEFAULT_VIEWPORT_HEIGHT     768
-#define DEFAULT_VIEWPORT_DOF        16
+#define DEFAULT_VIEWPORT_DOF        32
 #define DEFAULT_VIEWPORT_FOV        (66.0f * DEG2RAD)
 
 typedef struct {
@@ -32,6 +32,7 @@ typedef struct {
     float rotation;
     float movementSpeed;
     float rotationSpeed;
+    float step;
 } Player;
 
 typedef struct {
@@ -85,6 +86,8 @@ typedef struct {
     Vector2 playerTileCoords;
     Vector2 playerDirection;
     Vector2 cameraPlane;
+    float step;
+    int padding;
 } FrameData;
 
 typedef struct {
@@ -311,6 +314,16 @@ static void Update(void) {
             P.position.y = newPosition.y - (xPad * I.right);
         }
     }
+    if (I.right || I.forward) {
+        P.step = Lerp(P.step, P.step + 2 * PI, delta);
+        if (P.step > PI) {
+            P.step -= 2 * PI;
+        } else if (P.step < -PI) {
+            P.step += 2 * PI;
+        }
+    } else {
+        P.step = Lerp(P.step, 0, delta);
+    }
 }
 
 static void Render(void) {
@@ -325,6 +338,8 @@ static void Render(void) {
         .playerTileCoords = tileCoords,
         .playerDirection = C.playerDirection,
         .cameraPlane = C.cameraPlane,
+        .step = P.step,
+        .padding = 0
     }, sizeof(FrameData), 0);
 
     rlBindShaderBuffer(G.ssboColumnsData, 1);

@@ -47,6 +47,8 @@ layout (std430, binding = 4) readonly restrict buffer FrameData {
     vec2 playerTileCoords;
     vec2 playerDirection;
     vec2 cameraPlane;
+    float playerStep;
+    int padding22;
 };
 
 void main() {
