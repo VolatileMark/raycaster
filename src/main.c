@@ -59,7 +59,7 @@ typedef struct {
 typedef struct {
     int width;
     int height;
-    float maxWallHeight;
+    float wallHeight;
     Tile data[];
 } Map;
 
@@ -67,7 +67,7 @@ typedef struct {
 static Map TestMap = {
     .width = 10,
     .height = 12,
-    .maxWallHeight = 800.0f,
+    .wallHeight = 800.0f,
     .data = {
         {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0},
         {0, 1, 0}, {1, 0, 1}, {1, 0, 1}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {1, 0, 1}, {0, 1, 0},
@@ -300,7 +300,7 @@ static void DrawColumn(Vector2 *worldCoords, Vector2 *tileCoords, int n) {
     }
 
     // Calculate the height of the pixel column
-    float lineHeight = M->maxWallHeight / rayDistance;
+    float lineHeight = M->wallHeight / rayDistance;
     // Calculate the height of each pixel in the column
     float dotHeight = (float) lineHeight / texture->height;
     // Find the corresponding texture column

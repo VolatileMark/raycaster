@@ -38,7 +38,6 @@ layout (std430, binding = 2) readonly restrict buffer Constants {
 layout (std430, binding = 3) readonly restrict buffer MapData {
     int mapWidth;
     int mapHeight;
-    float maxWallHeight;
     Tile mapData[];
 };
 
@@ -103,7 +102,8 @@ void main() {
     int cellId = 0;
     bool vertical = false;
     // Step the rays until one hits
-    for (int i = 0; i < depthOfField; i++) {
+    int i;
+    for (i = 0; i < depthOfField; i++) {
         int mapOffset = mapCoords.y * mapWidth + mapCoords.x;
         if (mapOffset >= 0 && mapOffset < (mapWidth * mapHeight) && (cellId = mapData[mapOffset].wall) != 0) {
             break;
@@ -121,6 +121,9 @@ void main() {
 
     // Check if the ray hit an empty cell
     if (cellId == 0) {
+        if (i == depthOfField) {
+            outputData[n].lineHeight = 0.1;
+        }
         return;
     }
 
@@ -144,7 +147,7 @@ void main() {
         textureColumnOffset = (step.y < 0) ? textureColumnOffset : (1.0 - textureColumnOffset);
     }
 
-    float lineHeight = maxWallHeight / rayDistance;
+    float lineHeight = viewportHeight / rayDistance;
     float lineOffset = 0.0;
     if (lineHeight > viewportHeight) {
         lineOffset = lineHeight - viewportHeight;
