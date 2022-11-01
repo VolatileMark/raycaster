@@ -54,14 +54,11 @@ layout (std430, binding = 4) readonly restrict buffer FrameData {
     vec2 playerTileCoords;
     vec2 playerDirection;
     vec2 cameraPlane;
-    float playerStep;
-    int padding22;
 };
 
 uniform sampler2D tileMap;
 
 void main() {
-    float pitch = sin(playerStep * WALKING_FREQUENCY) * WALKING_AMPLITUDE;
     // Get the size of the tile map in pixels
     ivec2 size = textureSize(tileMap, 0);
     // Get the pixel position of the fragment
@@ -73,14 +70,14 @@ void main() {
     float lineHeight = inputData[column].lineHeight;
     float halfLineHeight = (lineHeight / 2.0);
     // Check if the pixel is part of the wall, the ceiling or the floor
-    bool isCeiling = yPosition < viewportHalfHeight - halfLineHeight + pitch;
-    bool isFloor = yPosition >= viewportHalfHeight + halfLineHeight + pitch;
+    bool isCeiling = yPosition < viewportHalfHeight - halfLineHeight;
+    bool isFloor = yPosition >= viewportHalfHeight + halfLineHeight;
     if (isCeiling || isFloor) {
         // If it's a floor or ceiling pixel, compute it's texture coordinates
         // or fill it with the floor or sky color respectively
         // Flip the coordinate if the pixel belongs to the floor
         // for the rest of the calculation to work correctly
-        float yCorrected = (isCeiling) ? (yPosition - pitch) : (viewportHeight - yPosition + pitch);
+        float yCorrected = (isCeiling) ? yPosition : (viewportHeight - yPosition);
         // Compute the distance in pixels from horizon
         float pixelsFromHorizon = viewportHalfHeight - yCorrected;
         // Compute the distance of the pixel ray (range is from 1.0 to +inf)
@@ -136,7 +133,7 @@ void main() {
         // Get the texture X coordinate already computed in the compute shader
         float texX = inputData[column].textureColumnOffset;
         // Calculate the texture Y coordinate range (from 0.0 to 1.0)
-        float texYRange = ((yPosition - (viewportHalfHeight - halfLineHeight) - pitch) / lineHeight);
+        float texYRange = ((yPosition - (viewportHalfHeight - halfLineHeight)) / lineHeight);
         // Adjust the texture Y coordinate to account for the part
         // of the column not shown on screen
         float texY = (texYRange * columnShownPerc) + (1.0 - columnShownPerc) / 2.0;
