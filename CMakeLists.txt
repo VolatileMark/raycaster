@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.11) # FetchContent is available in 3.11+
-project(recoil)
+project(raycaster)
 
 # Generate compile_commands.json
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -34,13 +34,13 @@ if (NOT raylib_FOUND) # If there's none, fetch and build raylib
   endif()
 endif()
 
-#include_directories(${PROJECT_SOURCE_DIR}/src)
-#file(GLOB sources 
-#    ${PROJECT_SOURCE_DIR}/src/*.c
-#    ${PROJECT_SOURCE_DIR}/src/**/*.c
-#)
-#add_executable(${PROJECT_NAME} ${sources})
-add_executable(${PROJECT_NAME} src/shader.c)
+if(NOT USE_COMPUTE_SHADERS)
+    set(source src/cpu.c)
+else()
+    set(source src/gpu.c)
+endif()
+
+add_executable(${PROJECT_NAME} ${source})
 target_link_libraries(${PROJECT_NAME} raylib)
 
 # Web Configurations
